@@ -9,6 +9,7 @@ enum Destination: Hashable {
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
     @State private var destination: Destination? = .overview
 
     var body: some View {
@@ -47,12 +48,15 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if model.phase == .scanning {
-                    Button("停止", systemImage: "stop.circle") { model.cancelScan() }
+                    Button("停止扫描", systemImage: "stop.circle") { model.cancelScan() }
+                        .keyboardShortcut(".")
+                        .help("停止扫描（⌘.）")
                 } else {
                     Button(model.lastScanDate == nil ? "扫描" : "重新扫描", systemImage: "arrow.clockwise") {
                         model.startScan()
                     }
                     .disabled(model.phase == .cleaning)
+                    .help(model.lastScanDate == nil ? "扫描可清理的内容（⌘R）" : "重新扫描（⌘R）")
                 }
             }
         }
@@ -74,6 +78,7 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .debugNavigate)) { note in
             if let target = note.object as? Destination { destination = target }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .debugOpenSettings)) { _ in openSettings() }
         .task { await DebugSnapshot.run(model: model) }
     }
 }
@@ -83,15 +88,14 @@ struct SidebarCategoryRow: View {
     let category: CleanCategory
 
     var body: some View {
-        HStack {
-            Label(category.title, systemImage: category.symbol)
-            Spacer()
-            if model.lastScanDate != nil {
-                let size = model.totalSize(in: category)
-                Text(size > 0 ? size.bytes : "—")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-        }
+        Label(category.title, systemImage: category.symbol)
+            .badge(badge)
+    }
+
+    /// 扫描后在侧边栏右侧显示该分类的大小
+    private var badge: Text? {
+        guard model.lastScanDate != nil else { return nil }
+        let size = model.totalSize(in: category)
+        return Text(size > 0 ? size.bytes : "—").monospacedDigit()
     }
 }

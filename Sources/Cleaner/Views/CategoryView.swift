@@ -25,11 +25,15 @@ struct CategoryView: View {
             } else {
                 List {
                     Section {
+                        ForEach(results) { result in
+                            RuleRow(result: result, isExpanded: binding(for: result.id))
+                        }
+                    } header: {
                         Text(category.summary)
+                            .font(.callout)
                             .foregroundStyle(.secondary)
-                    }
-                    ForEach(results) { result in
-                        RuleSection(result: result, isExpanded: binding(for: result.id))
+                            .textCase(nil)
+                            .padding(.bottom, 4)
                     }
                 }
                 .listStyle(.inset(alternatesRowBackgrounds: false))
@@ -56,20 +60,21 @@ struct CategoryView: View {
     }
 }
 
-struct RuleSection: View {
-    @Environment(AppModel.self) private var model
+/// 一条规则：用系统的展开三角显示明细
+struct RuleRow: View {
     let result: RuleResult
     @Binding var isExpanded: Bool
 
-    private var selectable: Bool { result.rule.action != .reveal }
-
     var body: some View {
-        Section {
-            RuleHeader(result: result, isExpanded: $isExpanded)
-            if isExpanded {
+        if result.items.isEmpty {
+            RuleHeader(result: result)
+        } else {
+            DisclosureGroup(isExpanded: $isExpanded) {
                 ForEach(result.items) { item in
                     ItemRow(item: item, rule: result.rule)
                 }
+            } label: {
+                RuleHeader(result: result)
             }
         }
     }
@@ -78,22 +83,22 @@ struct RuleSection: View {
 struct RuleHeader: View {
     @Environment(AppModel.self) private var model
     let result: RuleResult
-    @Binding var isExpanded: Bool
 
     var body: some View {
         let rule = result.rule
         HStack(alignment: .top, spacing: 10) {
             if rule.action != .reveal && !result.items.isEmpty {
-                Toggle(sources: itemBindings, isOn: \.self) { EmptyView() }
+                Toggle(sources: itemBindings, isOn: \.self) { Text("选择全部\(rule.name)") }
                     .toggleStyle(.checkbox)
                     .labelsHidden()
-                    .padding(.top, 2)
+                    .padding(.top, 1)
             } else {
                 Image(systemName: "eye")
                     .foregroundStyle(.secondary)
                     .frame(width: 14)
-                    .padding(.top, 3)
+                    .padding(.top, 2)
                     .help("只展示占用，需要在对应 App 里处理")
+                    .accessibilityLabel("只展示，需要在对应 App 里处理")
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -105,6 +110,7 @@ struct RuleHeader: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .help("会移到废纸篓，可以恢复")
+                            .accessibilityLabel("会移到废纸篓")
                     }
                 }
                 Text(rule.summary)
@@ -112,34 +118,27 @@ struct RuleHeader: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let running = runningNote {
-                    Label(running, systemImage: "app.badge")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    StatusNote(running, systemImage: "app.badge", tint: .orange)
                 }
                 ForEach(result.notes, id: \.self) { note in
-                    Label(note, systemImage: "info.circle")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
+                    StatusNote(note, systemImage: "info.circle.fill", tint: .blue)
                 }
                 if let hint = rule.hint {
-                    Label(hint, systemImage: "lightbulb")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    StatusNote(hint, systemImage: "lightbulb")
                 }
                 if result.accessDenied {
-                    HStack {
-                        Label("没有权限读取这个位置", systemImage: "lock")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
+                    HStack(spacing: 6) {
+                        StatusNote("没有权限读取这个位置", systemImage: "lock.fill", tint: .orange)
                         Button("授予完全磁盘访问权限") { model.openFullDiskAccessSettings() }
-                            .controlSize(.small)
+                            .buttonStyle(.link)
+                            .font(.caption)
                     }
                 }
             }
 
             Spacer(minLength: 12)
 
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 2) {
                 Text(rule.action == .reveal ? result.totalSize.bytes : result.reclaimableTotal.bytes)
                     .font(.headline.monospacedDigit())
                 if rule.action != .reveal && result.reclaimableTotal < result.totalSize * 9 / 10 {
@@ -149,21 +148,13 @@ struct RuleHeader: View {
                         .help("多份文件共用同一份数据（APFS 克隆），删除后实际释放的空间少于占用")
                 }
                 if !result.items.isEmpty {
-                    Button {
-                        withAnimation(.snappy(duration: 0.2)) { isExpanded.toggle() }
-                    } label: {
-                        HStack(spacing: 2) {
-                            Text("\(result.items.count) 项")
-                            Image(systemName: "chevron.right")
-                                .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        }
-                        .font(.caption)
-                    }
-                    .buttonStyle(.borderless)
+                    Text("\(result.items.count) 项")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
     }
 
@@ -193,10 +184,12 @@ struct ItemRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             if rule.action != .reveal {
-                Toggle("", isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
-                    .toggleStyle(.checkbox)
-                    .labelsHidden()
-                    .padding(.top, 1)
+                Toggle(isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) })) {
+                    Text(item.title)
+                }
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                .padding(.top, 1)
             } else {
                 Spacer().frame(width: 14)
             }
@@ -219,9 +212,7 @@ struct ItemRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 if let note = item.note {
-                    Text(note)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    StatusNote(note, systemImage: "exclamationmark.circle.fill", tint: .orange)
                 }
             }
 
@@ -241,12 +232,12 @@ struct ItemRow: View {
             Button {
                 model.reveal(item.urls)
             } label: {
-                Image(systemName: "magnifyingglass")
+                Label("在访达中显示", systemImage: "magnifyingglass")
+                    .labelStyle(.iconOnly)
             }
             .buttonStyle(.borderless)
             .help("在访达中显示")
         }
-        .padding(.leading, 24)
         .padding(.vertical, 2)
         .contextMenu {
             Button("在访达中显示") { model.reveal(item.urls) }

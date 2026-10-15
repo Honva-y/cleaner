@@ -17,7 +17,9 @@ struct CleanBar: View {
                     .font(.headline.monospacedDigit())
                 Text(category == nil
                      ? "共 \(model.selectedCount) 项，来自所有分类"
-                     : "本分类 \(selectedHere.bytes)，共 \(model.selectedCount) 项")
+                     : selectedHere > 0
+                     ? "本分类 \(selectedHere.bytes) · 全部共 \(model.selectedCount) 项"
+                     : "本分类未选择 · 全部共 \(model.selectedCount) 项")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -114,10 +116,8 @@ struct CleanConfirmView: View {
                     }
                 }
             }
-            .listStyle(.inset)
+            .listStyle(.bordered(alternatesRowBackgrounds: true))
             .frame(minHeight: 220)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator))
 
             HStack {
                 Text("每一步都会记录在操作日志里。")
@@ -126,7 +126,7 @@ struct CleanConfirmView: View {
                 Spacer()
                 Button("取消", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button {
+                Button(role: personal.isEmpty ? nil : .destructive) {
                     dismiss()
                     model.clean()
                 } label: {
@@ -146,15 +146,17 @@ struct CleanConfirmView: View {
     }
 
     private func summaryRow(_ symbol: String, _ color: Color, _ title: String, _ detail: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: symbol)
                 .foregroundStyle(color)
                 .frame(width: 20)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline)
+                Text(title).font(.headline).monospacedDigit()
                 Text(detail).font(.callout).foregroundStyle(.secondary)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -188,6 +190,7 @@ struct CleanResultView: View {
             Image(systemName: report.failures.isEmpty ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(report.failures.isEmpty ? .green : .orange)
+                .accessibilityHidden(true)
 
             Text(headline).font(.title2.weight(.semibold))
 

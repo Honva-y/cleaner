@@ -6,6 +6,8 @@ extension Notification.Name {
     static let debugNavigate = Notification.Name("Cleaner.debug.navigate")
     static let debugShowConfirm = Notification.Name("Cleaner.debug.showConfirm")
     static let debugToggleTopApps = Notification.Name("Cleaner.debug.toggleTopApps")
+    static let debugSettingsTab = Notification.Name("Cleaner.debug.settingsTab")
+    static let debugOpenSettings = Notification.Name("Cleaner.debug.openSettings")
 }
 
 /// 开发用：`Cleaner --snapshot <目录>` 自动扫描，把每个页面渲染成 PNG 后退出。
@@ -52,6 +54,13 @@ enum DebugSnapshot {
         NotificationCenter.default.post(name: .debugShowConfirm, object: nil)
         await pause(1.5)
         capture("5-confirm", in: dir)
+
+        NotificationCenter.default.post(name: .debugOpenSettings, object: nil)
+        for tab in 0..<3 {
+            NotificationCenter.default.post(name: .debugSettingsTab, object: tab)
+            await pause(1)
+            capture("6-settings-\(tab)", in: dir)
+        }
         exit(0)
     }
 

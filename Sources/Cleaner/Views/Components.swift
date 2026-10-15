@@ -2,7 +2,25 @@ import CleanCore
 import SwiftUI
 
 extension Int64 {
-    var bytes: String { ByteCountFormatter.string(fromByteCount: self, countStyle: .file) }
+    var bytes: String { ByteFormat.file.string(fromByteCount: self) }
+}
+
+enum ByteFormat {
+    /// 不用 “Zero KB” 这类文字写法；最小单位 KB，0 显示成 “0 KB” 而不是 “0 bytes”
+    static let file: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowsNonnumericFormatting = false
+        formatter.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
+        return formatter
+    }()
+
+    static let memory: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .memory
+        formatter.allowsNonnumericFormatting = false
+        return formatter
+    }()
 }
 
 extension RiskLevel {
@@ -34,6 +52,56 @@ struct RiskBadge: View {
             .foregroundStyle(risk.color)
             .background(risk.color.opacity(0.15), in: Capsule())
             .help(risk.explanation)
+            .accessibilityLabel("风险：\(risk.title)，\(risk.explanation)")
+    }
+}
+
+// MARK: - 卡片和提示
+
+enum CardStyle {
+    static let cornerRadius: CGFloat = 10
+    static let padding: CGFloat = 16
+    static let spacing: CGFloat = 12
+}
+
+extension View {
+    /// 概览页统一的卡片样式
+    func card(padding: CGFloat = CardStyle.padding) -> some View {
+        self
+            .padding(padding)
+            .background(.background.secondary, in: RoundedRectangle(cornerRadius: CardStyle.cornerRadius, style: .continuous))
+    }
+}
+
+extension Font {
+    /// 卡片里的主数值
+    static let metricValue = Font.system(.title, design: .rounded, weight: .semibold).monospacedDigit()
+}
+
+/// 带图标的说明文字：只给图标上色，正文保持次要颜色，避免大段彩色文字
+struct StatusNote: View {
+    let text: String
+    let symbol: String
+    var tint: Color = .secondary
+    var font: Font = .caption
+
+    init(_ text: String, systemImage: String, tint: Color = .secondary, font: Font = .caption) {
+        self.text = text
+        self.symbol = systemImage
+        self.tint = tint
+        self.font = font
+    }
+
+    var body: some View {
+        Label {
+            Text(text)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: symbol)
+                .foregroundStyle(tint)
+        }
+        .font(font)
     }
 }
 
@@ -50,26 +118,29 @@ struct DiskUsageBar: View {
                 let usedWidth = width * Double(disk.used) / total
                 let selectedWidth = min(usedWidth, width * Double(selected) / total)
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.secondary.opacity(0.15))
-                    Capsule().fill(usageColor.gradient).frame(width: usedWidth)
+                    Rectangle().fill(.quaternary)
+                    Rectangle().fill(usageColor).frame(width: usedWidth)
                     if selectedWidth > 1 {
-                        Rectangle().fill(Color.green.gradient)
+                        Rectangle().fill(Color.green)
                             .frame(width: selectedWidth)
                             .offset(x: usedWidth - selectedWidth)
                     }
                 }
-                .clipShape(Capsule())
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
-            .frame(height: 14)
+            .frame(height: 12)
+            .accessibilityElement()
+            .accessibilityLabel("磁盘占用")
+            .accessibilityValue("已用 \(disk.used.bytes)，共 \(disk.total.bytes)")
 
             HStack(spacing: 16) {
-                legend(usageColor, "已用 \(disk.used.bytes)")
-                if selected > 0 { legend(.green, "已选可清理 \(selected.bytes)") }
-                legend(Color.secondary.opacity(0.3), "可用 \(disk.available.bytes)")
+                legend(usageColor, "已用", disk.used)
+                if selected > 0 { legend(.green, "已选可清理", selected) }
+                legend(Color.secondary.opacity(0.3), "可用", disk.available)
                 Spacer()
                 Text("共 \(disk.total.bytes)").foregroundStyle(.secondary)
             }
-            .font(.callout)
+            .font(.callout.monospacedDigit())
         }
     }
 
@@ -78,11 +149,13 @@ struct DiskUsageBar: View {
         return ratio > 0.9 ? .red : ratio > 0.75 ? .orange : .accentColor
     }
 
-    private func legend(_ color: Color, _ text: String) -> some View {
+    private func legend(_ color: Color, _ title: String, _ bytes: Int64) -> some View {
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 8, height: 8)
-            Text(text)
+            Text(title).foregroundStyle(.secondary)
+            Text(bytes.bytes)
         }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -91,22 +164,27 @@ struct FullDiskAccessBanner: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "lock.shield")
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "lock.shield.fill")
                 .font(.title2)
                 .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 4) {
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
                 Text("需要“完全磁盘访问”权限").font(.headline)
-                Text("建议先授权再扫描：否则扫描到微信等 App 的数据时，系统会弹窗询问，扫描会暂停等待；废纸篓、Safari、邮件也无法扫描。授权后请重新打开 Cleaner。")
+                Text("否则扫描微信等 App 的数据时，系统会弹窗询问，扫描会暂停；废纸篓、Safari、邮件也无法扫描。授权后请重新打开 Cleaner。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
+            Spacer(minLength: 12)
             Button("前往授权") { model.openFullDiskAccessSettings() }
         }
-        .padding(12)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.orange.opacity(0.25)))
+        .card(padding: 14)
+        .overlay(
+            RoundedRectangle(cornerRadius: CardStyle.cornerRadius, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.35))
+        )
+        .accessibilityElement(children: .contain)
     }
 }
 

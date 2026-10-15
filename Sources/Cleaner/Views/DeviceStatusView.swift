@@ -32,7 +32,7 @@ struct DeviceStatusSection: View {
                 }
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: CardStyle.spacing)], spacing: CardStyle.spacing) {
                 CPUCard()
                 MemoryCard()
                 NetworkCard()
@@ -44,9 +44,7 @@ struct DeviceStatusSection: View {
             }
 
             if let tip = memoryTip {
-                Label(tip, systemImage: "memorychip")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
+                StatusNote(tip, systemImage: "exclamationmark.triangle.fill", tint: .orange, font: .callout)
             }
         }
     }
@@ -90,9 +88,10 @@ struct MetricCard<Accessory: View, Content: View>: View {
             }
             content
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 172, alignment: .topLeading)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .frame(maxWidth: .infinity, minHeight: 144, alignment: .topLeading)
+        .card(padding: 14)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
     }
 }
 
@@ -111,7 +110,7 @@ struct CPUCard: View {
             TopAppsButton(sort: .cpu)
         } content: {
             Text(cpu.map { $0.total.percent } ?? "—")
-                .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
+                .font(.metricValue)
                 .foregroundStyle(levelColor(cpu?.total ?? 0))
             Sparkline(values: monitor.cpuHistory, maximum: 1, color: .blue)
                 .frame(height: 30)
@@ -144,7 +143,7 @@ struct MemoryCard: View {
             if let memory {
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text(memory.used.memoryBytes)
-                        .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
+                        .font(.metricValue)
                     Text("/ \(memory.total.memoryBytes)")
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -162,7 +161,7 @@ struct MemoryCard: View {
                     .foregroundStyle(memory.pressure.color)
                     .lineLimit(1)
             } else {
-                Text("—").font(.system(size: 26, weight: .semibold, design: .rounded))
+                Text("—").font(.metricValue)
             }
         }
     }
@@ -197,7 +196,7 @@ struct MemoryBar: View {
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.secondary.opacity(0.15))
+            .background(.quaternary)
             .clipShape(Capsule())
         }
         .help("App \(memory.app.memoryBytes) · 联动 \(memory.wired.memoryBytes) · 压缩 \(memory.compressed.memoryBytes) · 缓存文件 \(memory.cached.memoryBytes)")
@@ -205,7 +204,7 @@ struct MemoryBar: View {
 
     private func segment(_ color: Color, _ bytes: UInt64, _ total: Double, _ width: CGFloat) -> some View {
         Rectangle()
-            .fill(color.gradient)
+            .fill(color)
             .frame(width: max(0, width * Double(bytes) / total - 1))
     }
 }
@@ -253,12 +252,12 @@ struct BatteryCard: View {
                 }
             } content: {
                 Text("\(battery.percent)%")
-                    .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
+                    .font(.metricValue)
                     .foregroundStyle(battery.percent <= 20 && !battery.onACPower ? .red : .primary)
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        Capsule().fill(Color.secondary.opacity(0.15))
-                        Capsule().fill(barColor(battery).gradient)
+                        Capsule().fill(.quaternary)
+                        Capsule().fill(barColor(battery))
                             .frame(width: geo.size.width * Double(battery.percent) / 100)
                     }
                 }
@@ -317,7 +316,7 @@ struct SystemCard: View {
         MetricCard(title: "系统", symbol: "desktopcomputer") {
             if let snapshot = monitor.snapshot {
                 Text(formatUptime(snapshot.uptime))
-                    .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
+                    .font(.metricValue)
                 Text("自上次开机")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -481,7 +480,7 @@ struct Sparkline: View {
 
 extension UInt64 {
     /// 内存用 1024 进制（和活动监视器一致）
-    var memoryBytes: String { ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .memory) }
+    var memoryBytes: String { ByteFormat.memory.string(fromByteCount: Int64(self)) }
 }
 
 extension UInt64 {

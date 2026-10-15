@@ -3,11 +3,13 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @State private var tab = 0
 
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             GeneralSettings()
                 .tabItem { Label("通用", systemImage: "gearshape") }
+                .tag(0)
             PathListSettings(
                 title: "项目目录",
                 explanation: "在这些目录里查找 node_modules、build、target 等构建产物（最多向下 6 层）。",
@@ -15,6 +17,7 @@ struct SettingsView: View {
                 allowFiles: false
             )
             .tabItem { Label("项目目录", systemImage: "folder") }
+            .tag(1)
             PathListSettings(
                 title: "保护清单",
                 explanation: "这些文件和文件夹（包括里面的内容）永远不会被清理。也可以在清理列表里右键某一项加入。",
@@ -22,8 +25,12 @@ struct SettingsView: View {
                 allowFiles: true
             )
             .tabItem { Label("保护清单", systemImage: "lock.shield") }
+            .tag(2)
         }
         .frame(width: 560, height: 420)
+        .onReceive(NotificationCenter.default.publisher(for: .debugSettingsTab)) { note in
+            if let index = note.object as? Int { tab = index }
+        }
     }
 }
 
@@ -45,9 +52,12 @@ private struct GeneralSettings: View {
             }
             Section("权限") {
                 HStack {
-                    Label(model.hasFullDiskAccess ? "已获得完全磁盘访问权限" : "没有完全磁盘访问权限",
-                          systemImage: model.hasFullDiskAccess ? "checkmark.shield" : "exclamationmark.shield")
-                        .foregroundStyle(model.hasFullDiskAccess ? .green : .orange)
+                    Label {
+                        Text(model.hasFullDiskAccess ? "已获得完全磁盘访问权限" : "没有完全磁盘访问权限")
+                    } icon: {
+                        Image(systemName: model.hasFullDiskAccess ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
+                            .foregroundStyle(model.hasFullDiskAccess ? .green : .orange)
+                    }
                     Spacer()
                     Button("打开系统设置") { model.openFullDiskAccessSettings() }
                 }
@@ -87,25 +97,72 @@ private struct PathListSettings: View {
             Text(explanation)
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            List(paths, id: \.self, selection: $selection) { path in
-                HStack {
-                    Image(systemName: "folder")
-                    Text(PathExpander.abbreviate(PathExpander.expandTokens(path)))
-                    Spacer()
-                    if !FileManager.default.fileExists(atPath: PathExpander.expandTokens(path)) {
-                        Text("不存在").font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            // 系统常见的列表 + 底部“+ −”按钮
+            VStack(spacing: 0) {
+                Group {
+                    if paths.isEmpty {
+                        // 空列表时 List 会画出空行的分隔线，直接显示占位文字
+                        Text("没有内容")
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        List(paths, id: \.self, selection: $selection) { path in
+                            let expanded = PathExpander.expandTokens(path)
+                            let exists = FileManager.default.fileExists(atPath: expanded)
+                            HStack {
+                                Group {
+                                    if exists {
+                                        Image(nsImage: NSWorkspace.shared.icon(forFile: expanded))
+                                            .resizable()
+                                    } else {
+                                        Image(systemName: "folder")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                                .frame(width: 16, height: 16)
+                                Text(PathExpander.abbreviate(expanded))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .foregroundStyle(exists ? .primary : .secondary)
+                                Spacer()
+                                if !exists {
+                                    Text("不存在").font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .listStyle(.plain)
                     }
                 }
-            }
-            .listStyle(.bordered)
-            HStack {
-                Button("添加…", systemImage: "plus") { add() }
-                Button("移除", systemImage: "minus") {
-                    paths.removeAll { selection.contains($0) }
-                    selection.removeAll()
+                Divider()
+                HStack(spacing: 0) {
+                    Button { add() } label: {
+                        Image(systemName: "plus").frame(width: 24, height: 20).contentShape(Rectangle())
+                    }
+                    .help("添加…")
+                    .accessibilityLabel("添加")
+                    Divider().frame(height: 14)
+                    Button {
+                        paths.removeAll { selection.contains($0) }
+                        selection.removeAll()
+                    } label: {
+                        Image(systemName: "minus").frame(width: 24, height: 20).contentShape(Rectangle())
+                    }
+                    .disabled(selection.isEmpty)
+                    .help("移除选中的项目")
+                    .accessibilityLabel("移除")
+                    .keyboardShortcut(.delete, modifiers: [])
+                    Spacer()
                 }
-                .disabled(selection.isEmpty)
+                .buttonStyle(.borderless)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
             }
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(.separator))
         }
         .padding(20)
     }
