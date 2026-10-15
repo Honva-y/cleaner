@@ -44,6 +44,12 @@ macOS 存储清理工具，面向开发者和国内用户。核心目标：**找
 - **预计释放**：同一份 APFS 克隆数据只算一次（`ATTR_CMNEXT_CLONEID`）。例如 35 份 Chrome 副本占用 78 GB，但它们共用同一份数据，预计释放只有约 2 GB。
 - 清理完成后，用磁盘可用空间的前后差值报告实际释放了多少。
 
+## 下载
+
+在 [Releases](https://github.com/Honva-y/cleaner/releases) 下载 `Cleaner-<版本>.dmg`，打开后把 Cleaner 拖到“应用程序”文件夹。
+
+安装包没有经过 Apple 公证，第一次打开会提示“无法验证开发者”：先打开一次，再到 **系统设置 → 隐私与安全性** 页面下方点 **仍要打开**。
+
 ## 构建与运行
 
 只需要 Command Line Tools（不需要 Xcode），macOS 14+。
@@ -73,6 +79,9 @@ swift run -c release Cleaner --metrics
 
 # 运行单元测试
 scripts/test.sh
+
+# 打包成 build/Cleaner-<版本>.dmg 和 .zip
+scripts/package.sh
 
 # 开发用：自动扫描并把每个页面截图保存到目录，然后退出（不会执行清理）
 .build/release/Cleaner --snapshot /tmp/cleaner-shots
@@ -105,6 +114,13 @@ scripts/test.sh
 | `paths` | glob，支持 `~`、`$TMPDIR`、`{a,b}` |
 | `matcher` | 默认 `glob`；另有 `monthFolders`（按 YYYY-MM 子目录聚合）、`oldVersions`（只保留最新版本）、`editorExtensions` |
 | 可选 | `exclude`、`minAgeDays`、`appBundleIDs`、`aggregate`、`hint` |
+
+## 发布新版本
+
+1. 修改 `Resources/Info.plist` 里的 `CFBundleShortVersionString`（如 `0.2.0`）并提交；
+2. 打同名标签并推送：`git tag v0.2.0 && git push origin v0.2.0`。
+
+GitHub Actions（`.github/workflows/release.yml`）会运行测试、打包，并把 DMG 和 zip 发布到 Releases。标签和 Info.plist 的版本不一致时会直接失败。也可以在 Actions 页面手动运行，只打包不发布。
 
 ## 工程结构
 

@@ -1,0 +1,66 @@
+# 打包 Cleaner 安装包
+# - 推送 v* 标签（如 v0.1.0）：测试、打包，并发布到 GitHub Release
+# - 手动运行（Actions 页面的 Run workflow）：只测试和打包，安装包在本次运行的 Artifacts 里
+name: 打包发布
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查标签和版本号一致
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::标签 $GITHUB_REF_NAME 和 Info.plist 里的版本 $VERSION 不一致"
+            exit 1
+          fi
+
+      - name: 运行单元测试
+        run: scripts/test.sh
+
+      - name: 打包
+        env:
+          # GitHub 的机器上没有签名证书，用 ad-hoc 签名
+          CODESIGN_IDENTITY: "-"
+        run: scripts/package.sh
+
+      - name: 上传到本次运行的 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cleaner
+          path: |
+            build/Cleaner-*.dmg
+            build/Cleaner-*.zip
+
+      - name: 发布到 Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > "$RUNNER_TEMP/notes.md" <<'EOF'
+          ## 安装
+
+          下载 `Cleaner-*.dmg`，打开后把 Cleaner 拖到“应用程序”文件夹。需要 macOS 14 或更高版本。
+
+          这个安装包没有经过 Apple 公证，第一次打开时系统会提示“无法验证开发者”：
+          1. 先尝试打开一次 Cleaner，然后关掉提示；
+          2. 打开 **系统设置 → 隐私与安全性**，在页面下方点 **仍要打开**。
+
+          也可以在终端运行 `xattr -dr com.apple.quarantine /Applications/Cleaner.app` 后再打开。
+
+          首次使用请在 **系统设置 → 隐私与安全性 → 完全磁盘访问** 中添加 Cleaner。每个新版本都需要重新授权一次。
+          EOF
+          gh release create "$GITHUB_REF_NAME" build/Cleaner-*.dmg build/Cleaner-*.zip \
+            --title "Cleaner $GITHUB_REF_NAME" \
+            --notes-file "$RUNNER_TEMP/notes.md"
