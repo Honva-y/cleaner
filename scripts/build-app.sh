@@ -42,12 +42,12 @@ cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # 用固定证书签名，系统按“Bundle ID + 证书”识别 App，重新构建后“完全磁盘访问”授权仍然有效。
 # 找不到证书时退回 ad-hoc：系统只能按代码哈希识别，每次重新构建都要重新授权。
 if [ "$SIGN_IDENTITY" != "-" ] && ! security find-identity -v -p codesigning | grep -qF "\"$SIGN_IDENTITY\""; then
-  echo "找不到签名证书“$SIGN_IDENTITY”，改用 ad-hoc 签名，重新构建后需要重新授予完全磁盘访问权限" >&2
+  echo "找不到签名证书“${SIGN_IDENTITY}”，改用 ad-hoc 签名，重新构建后需要重新授予完全磁盘访问权限" >&2
   SIGN_IDENTITY=-
 fi
 codesign --force --deep --sign "$SIGN_IDENTITY" "$APP"
 
-echo "已生成 $APP（签名：$([ "$SIGN_IDENTITY" = "-" ] && echo ad-hoc || echo "$SIGN_IDENTITY")）"
+echo "已生成 ${APP}（签名：$([ "$SIGN_IDENTITY" = "-" ] && echo ad-hoc || echo "$SIGN_IDENTITY")）"
 
 if [ "$INSTALL" = 1 ]; then
   # 正在运行时先退出，避免替换掉运行中的 App
