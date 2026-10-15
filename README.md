@@ -60,7 +60,7 @@ scripts/build-app.sh --install --open
 
 首次使用请先在 **系统设置 → 隐私与安全性 → 完全磁盘访问** 中添加 Cleaner，然后重新打开。否则扫描到微信等 App 的数据时系统会弹窗询问，扫描会暂停等待；废纸篓、Safari、邮件也无法扫描。
 
-> 目前用的是 ad-hoc 签名，每次重新构建签名都会变，系统可能要求重新授权。
+> 打包脚本默认用本机的代码签名证书 `SnapLite Dev` 签名，可以用 `CODESIGN_IDENTITY="证书名"` 换成别的证书（`security find-identity -v -p codesigning` 查看可用证书）。用固定证书签名时，重新构建后授权仍然有效；找不到证书会退回 ad-hoc 签名，每次重新构建都要重新授权。
 
 ### 其他命令
 

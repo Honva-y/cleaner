@@ -4,12 +4,15 @@
 #   scripts/build-app.sh --open     # 构建后直接打开
 #   scripts/build-app.sh --install  # 构建后复制到 /Applications（启动台里才能看到）
 #   两个参数可以一起用，此时打开的是 /Applications 里的副本
+#   CODESIGN_IDENTITY="证书名" scripts/build-app.sh   # 指定签名证书，设为 - 强制 ad-hoc
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG=release
 APP=build/Cleaner.app
 INSTALL_DIR=/Applications
+# 默认用本机已有的自签名证书
+SIGN_IDENTITY="${CODESIGN_IDENTITY:-SnapLite Dev}"
 
 OPEN=0
 INSTALL=0
@@ -36,11 +39,15 @@ cp "$BIN" "$APP/Contents/MacOS/Cleaner"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
-# ad-hoc 签名：本机运行足够。注意每次重新构建签名都会变，
-# 系统可能要求重新授予“完全磁盘访问”权限。
-codesign --force --deep --sign - "$APP"
+# 用固定证书签名，系统按“Bundle ID + 证书”识别 App，重新构建后“完全磁盘访问”授权仍然有效。
+# 找不到证书时退回 ad-hoc：系统只能按代码哈希识别，每次重新构建都要重新授权。
+if [ "$SIGN_IDENTITY" != "-" ] && ! security find-identity -v -p codesigning | grep -qF "\"$SIGN_IDENTITY\""; then
+  echo "找不到签名证书“$SIGN_IDENTITY”，改用 ad-hoc 签名，重新构建后需要重新授予完全磁盘访问权限" >&2
+  SIGN_IDENTITY=-
+fi
+codesign --force --deep --sign "$SIGN_IDENTITY" "$APP"
 
-echo "已生成 $APP"
+echo "已生成 $APP（签名：$([ "$SIGN_IDENTITY" = "-" ] && echo ad-hoc || echo "$SIGN_IDENTITY")）"
 
 if [ "$INSTALL" = 1 ]; then
   # 正在运行时先退出，避免替换掉运行中的 App
