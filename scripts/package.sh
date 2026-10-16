@@ -2,8 +2,11 @@
 # 打包成可以分发的安装包（本机和 GitHub Actions 共用）
 #   scripts/package.sh    # 输出 build/Cleaner-<版本>.dmg 和 build/Cleaner-<版本>.zip
 # 签名方式同 build-app.sh，可以用 CODESIGN_IDENTITY 指定证书
+# 默认打通用版本（Apple 芯片 + Intel），可以用 ARCHS 覆盖
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+export ARCHS="${ARCHS:-arm64 x86_64}"
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
 APP=build/Cleaner.app

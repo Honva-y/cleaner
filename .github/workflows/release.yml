@@ -35,6 +35,19 @@ jobs:
           CODESIGN_IDENTITY: "-"
         run: scripts/package.sh
 
+      - name: 检查通用版本
+        run: |
+          BIN=build/Cleaner.app/Contents/MacOS/Cleaner
+          lipo -info "$BIN"
+          lipo "$BIN" -verify_arch arm64 x86_64
+          arch -arm64 "$BIN" --metrics
+          # Intel 部分用 Rosetta 跑一次
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then
+            arch -x86_64 "$BIN" --metrics
+          else
+            echo "::warning::这台机器没有 Rosetta，跳过 Intel 版的运行检查"
+          fi
+
       - name: 上传到本次运行的 Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -51,7 +64,7 @@ jobs:
           cat > "$RUNNER_TEMP/notes.md" <<'EOF'
           ## 安装
 
-          下载 `Cleaner-*.dmg`，打开后把 Cleaner 拖到“应用程序”文件夹。需要 macOS 14 或更高版本。
+          下载 `Cleaner-*.dmg`，打开后把 Cleaner 拖到“应用程序”文件夹。需要 macOS 14 或更高版本，Apple 芯片和 Intel 的 Mac 都可以用。
 
           这个安装包没有经过 Apple 公证，第一次打开时系统会提示“无法验证开发者”：
           1. 先尝试打开一次 Cleaner，然后关掉提示；

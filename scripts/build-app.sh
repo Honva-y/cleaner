@@ -5,6 +5,7 @@
 #   scripts/build-app.sh --install  # 构建后复制到 /Applications（启动台里才能看到）
 #   两个参数可以一起用，此时打开的是 /Applications 里的副本
 #   CODESIGN_IDENTITY="证书名" scripts/build-app.sh   # 指定签名证书，设为 - 强制 ad-hoc
+#   ARCHS="arm64 x86_64" scripts/build-app.sh          # 通用版本，同时支持 Apple 芯片和 Intel（默认只编本机架构）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -13,6 +14,7 @@ APP=build/Cleaner.app
 INSTALL_DIR=/Applications
 # 默认用本机已有的自签名证书
 SIGN_IDENTITY="${CODESIGN_IDENTITY:-SnapLite Dev}"
+ARCHS="${ARCHS:-$(uname -m)}"
 
 OPEN=0
 INSTALL=0
@@ -24,8 +26,12 @@ for arg in "$@"; do
   esac
 done
 
-swift build -c "$CONFIG" --product Cleaner
-BIN="$(swift build -c "$CONFIG" --show-bin-path)/Cleaner"
+# 每个架构单独编译，再用 lipo 合并（只装 Command Line Tools 也能交叉编译）
+BINS=()
+for arch in $ARCHS; do
+  swift build -c "$CONFIG" --product Cleaner --arch "$arch"
+  BINS+=("$(swift build -c "$CONFIG" --arch "$arch" --show-bin-path)/Cleaner")
+done
 
 # logo 源图或生成脚本有更新时重新生成图标
 if [ ! -f Resources/AppIcon.icns ] || [ Resources/AppIcon-source.png -nt Resources/AppIcon.icns ] \
@@ -35,7 +41,11 @@ fi
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/Cleaner"
+if [ "${#BINS[@]}" = 1 ]; then
+  cp "${BINS[0]}" "$APP/Contents/MacOS/Cleaner"
+else
+  lipo -create "${BINS[@]}" -output "$APP/Contents/MacOS/Cleaner"
+fi
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
@@ -47,7 +57,7 @@ if [ "$SIGN_IDENTITY" != "-" ] && ! security find-identity -v -p codesigning | g
 fi
 codesign --force --deep --sign "$SIGN_IDENTITY" "$APP"
 
-echo "已生成 ${APP}（签名：$([ "$SIGN_IDENTITY" = "-" ] && echo ad-hoc || echo "$SIGN_IDENTITY")）"
+echo "已生成 ${APP}（签名：$([ "$SIGN_IDENTITY" = "-" ] && echo ad-hoc || echo "$SIGN_IDENTITY")，架构：${ARCHS}）"
 
 if [ "$INSTALL" = 1 ]; then
   # 正在运行时先退出，避免替换掉运行中的 App

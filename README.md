@@ -46,7 +46,7 @@ macOS 存储清理工具，面向开发者和国内用户。核心目标：**找
 
 ## 下载
 
-在 [Releases](https://github.com/Honva-y/cleaner/releases) 下载 `Cleaner-<版本>.dmg`，打开后把 Cleaner 拖到“应用程序”文件夹。
+在 [Releases](https://github.com/Honva-y/cleaner/releases) 下载 `Cleaner-<版本>.dmg`，打开后把 Cleaner 拖到“应用程序”文件夹。安装包是通用版本，Apple 芯片和 Intel 的 Mac 都可以用。
 
 安装包没有经过 Apple 公证，第一次打开会提示“无法验证开发者”：先打开一次，再到 **系统设置 → 隐私与安全性** 页面下方点 **仍要打开**。
 
@@ -80,7 +80,7 @@ swift run -c release Cleaner --metrics
 # 运行单元测试
 scripts/test.sh
 
-# 打包成 build/Cleaner-<版本>.dmg 和 .zip
+# 打包成 build/Cleaner-<版本>.dmg 和 .zip（通用版本，同时支持 Apple 芯片和 Intel）
 scripts/package.sh
 
 # 开发用：自动扫描并把每个页面截图保存到目录，然后退出（不会执行清理）
